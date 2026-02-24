@@ -1,0 +1,23 @@
+{
+    "name": "league-client-mcp-plugin",
+    "description": "MCP Plugin for League of Legends Client",
+    "private": true,
+    "version": "1.0.0",
+    "license": "MIT",
+    "type": "module",
+    "module": "./dist/index.js",
+    "config": {
+        "penguPath": "YOUR PENGU PATH HERE"
+    },
+    "scripts": {
+        "dev": "tsup --watch",
+        "build": "tsup"
+    },
+    "devDependencies": {
+        "@types/node": "^20.12.11",
+        "@types/ws": "^8.5.10",
+        "tsup": "^8.0.2",
+        "typescript": "^5.4.5",
+        "ws": "^8.17.0"
+    }
+}
