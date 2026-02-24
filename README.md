@@ -2,7 +2,7 @@
 
 [WIP] An **AI-powered** for the League of Legends Client. It bridges an [MCP (Model Context Protocol)](https://modelcontextprotocol.io/) server with a [Pengu Loader](https://github.com/PenguLoader/PenguLoader) plugin, allowing AI assistants (Claude, Antigravity, Cursor, etc.) to inspect the League Client's live DOM and inject custom CSS in real time.
 
-<video src="https://github.com/rumi-chan/league-client-mcp/raw/main/assets/demo.mp4" autoplay loop muted playsinline></video>
+<video src="https://github.com/user-attachments/assets/b05a1aeb-8241-4933-bba9-fe31419fdb91" autoplay loop muted playsinline></video>
 
 ## How It Works
 
