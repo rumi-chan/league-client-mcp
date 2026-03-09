@@ -1,0 +1,165 @@
+---
+description: League Client MCP — instructions for working with the live LoL client via MCP tools. Always apply when working in this repo.
+alwaysApply: true
+---
+
+# League Client MCP
+
+You are working with a **live League of Legends Client** via the `league-client-mcp` MCP server.
+The server bridges tool calls to a Pengu Loader plugin inside the LoL Client over WebSocket.
+
+## Architecture
+
+```
+Cursor Agent  ──MCP stdio──►  MCP Server (Node.js)
+                                  │  ws://127.0.0.1:8080
+                                  ▼
+                       Pengu Loader Plugin  (inside LoL Client)
+                                  │  DOM · CSS · JS · LCU fetch()
+                                  ▼
+                       League of Legends Client  (CEF / Ember.js)
+```
+
+League must be running with Pengu Loader active. 15 MCP tools available.
+
+## Standard Workflow
+
+```
+1. get_lol_dom_snapshot   → map current page, find selectors
+2. inject_lol_css         → prototype visual changes
+3. query_lol_element      → verify selector or computed style
+4. inject_lol_plugin      → add persistent JS + CSS behaviour
+5. reload_lol_plugin      → iterate after code changes
+6. export_plugin_to_pengu → write plugin to disk
+7. reload_lol_client      → activate exported plugin permanently
+```
+
+## Tool Quick Reference
+
+| Tool | When to use |
+|---|---|
+| `get_lol_dom_snapshot` | Start of every session — map the page |
+| `query_lol_element` | Verify one selector without a full snapshot |
+| `inject_lol_css` | CSS-only prototyping (replaces previous CSS) |
+| `execute_lol_javascript` | One-off JS reads or quick checks |
+| `inject_lol_plugin` | Persistent behaviour (JS + CSS, survives navigation) |
+| `remove_lol_plugin` / `reload_lol_plugin` | Teardown or hot-reload a plugin |
+| `export_plugin_to_pengu` | Make a plugin permanent on disk |
+| `lcu_request` | Read/write LCU REST API (game data, summoner, lobby) |
+| `click_lol_element` | Click a UI element |
+| `type_into_lol_element` | Type into an input |
+| `wait_for_lol_element` | Wait for element after navigation |
+| `get_lol_client_state` | Current URL and active plugin names |
+| `get_lol_performance_metrics` | Heap, DOM nodes, paint timings |
+| `reload_lol_client` | Full client reload |
+
+## Key LCU Endpoints
+
+### Summoner
+- `GET /lol-summoner/v1/current-summoner` — id, puuid, displayName, summonerLevel
+- `GET /lol-summoner/v2/summoners/puuid/{puuid}` — summoner by PUUID
+
+### Gameflow
+- `GET /lol-gameflow/v1/gameflow-phase` — `None`·`Lobby`·`ChampSelect`·`InProgress`·`EndOfGame` etc.
+- `GET /lol-gameflow/v1/session` — full game session data
+
+### Champion Select
+- `GET /lol-champ-select/v1/session` — picks, bans, timer, phase
+- `PATCH /lol-champ-select/v1/session/actions/{id}` — hover/lock champion
+- `GET /lol-champ-select/v1/session/my-selection` — my champion and spells
+- `GET /lol-champ-select/v1/pickable-champion-ids` — available picks
+
+### Lobby
+- `GET /lol-lobby/v2/lobby` — current lobby
+- `POST /lol-lobby/v2/lobby` — create lobby `{queueId}`
+- `POST /lol-lobby/v2/lobby/matchmaking/search` — start queue
+- `GET /lol-lobby/v2/received-invitations` — pending invitations
+
+### Chat
+- `GET /lol-chat/v1/friends` — friends with availability
+- `GET /lol-chat/v1/me` — my chat state
+- `PUT /lol-chat/v1/me` — update status / availability
+- `POST /lol-chat/v1/conversations/{id}/messages` — send message
+
+### Ranked
+- `GET /lol-ranked/v1/current-ranked-stats` — tier, LP, wins, losses
+- `GET /lol-ranked/v1/ranked-stats/{puuid}` — any player's stats
+
+### Match History
+- `GET /lol-match-history/v1/products/lol/current-summoner/matches` — recent matches
+- `GET /lol-match-history/v1/games/{gameId}` — full game data
+
+### Mastery & Runes
+- `GET /lol-champion-mastery/v1/local-player/champion-mastery` — all mastery
+- `GET /lol-perks/v1/pages` — rune pages | `PUT /lol-perks/v1/currentpage` — set active
+
+### Loot & Inventory
+- `GET /lol-loot/v1/player-loot` — loot inventory
+- `GET /lol-inventory/v1/wallet` — wallet balance (RP, BE)
+- `GET /lol-champions/v1/inventories/{summonerId}/champions` — owned champions
+
+### Honor & End of Game
+- `GET /lol-honor-v2/v1/ballot` — post-game honor ballot
+- `GET /lol-end-of-game/v1/eog-stats-block` — post-game stats
+
+## Plugin Code Conventions
+
+```js
+// Always return a cleanup function
+const obs = new MutationObserver(() => {
+  clearTimeout(window._t);
+  window._t = setTimeout(render, 350);
+});
+obs.observe(document.body, { childList: true, subtree: false });
+const interval = setInterval(render, 5000);
+render();
+return () => { obs.disconnect(); clearInterval(interval); };
+```
+
+- Debounce MutationObserver ~350 ms for Ember.js async DOM updates
+- Use `fetch('/lcu-endpoint')` inside plugins — no auth needed
+- `DataStore.set('k', v)` / `DataStore.get('k')` for persistent storage
+- Position overlays: `position: fixed; z-index: 99999; pointer-events: none`
+- Always call `export_plugin_to_pengu` + `reload_lol_client` to persist a plugin
+
+## CSS Conventions
+
+- `!important` on every declaration (LoL CSS is heavily layered)
+- Design tokens: `--font-display`, `--font-body`, `--color-gold-{1-5}`, `--color-blue-{1-6}`, `--color-grey-{1-6}`
+- Common selectors: `.lol-navigation`, `.screen-root.active`, `.champion-select`, `.profile-wrapper`, `.chat-typeahead-input`
+
+## Constraints
+
+- CEF/Chromium: ES2020+ JS; no Node.js or browser extension APIs
+- `inject_lol_css` replaces entire stylesheet on each call
+- Injected plugins cleared on client reload — `export_plugin_to_pengu` makes them permanent
+- 15 s WebSocket timeout if LoL Client or Pengu Loader is not running
+```
+
+- Return a `() => void` — required for `reload_lol_plugin` and `remove_lol_plugin`
+- Debounce MutationObserver callbacks by ~350 ms
+- Use `await fetch('/lcu-endpoint').then(r => r.json())` for LCU data inside plugins
+- `await DataStore.set('key', val)` / `await DataStore.get('key')` for persistence
+
+## CSS Conventions
+
+- **Always `!important`** — LoL styles override without it
+- `position: fixed; z-index: 99999+` for overlays
+- Design tokens: `--font-display`, `--font-body`, `--color-gold-{1-5}`, `--color-blue-{1-6}`, `--color-grey-{1-6}`
+
+## Common Selectors
+
+- Main nav: `.lol-navigation`
+- Active page: `.screen-root.active`
+- Profile: `.profile-wrapper`
+- Champ select: `.champion-select`
+- Primary button: `lol-uikit-flat-button[data-button-type='primary']`
+- Chat input: `.chat-typeahead-input`
+
+## Constraints
+
+- CEF/Chromium — ES2020+, no Node.js or browser extension APIs
+- `inject_lol_css` replaces the entire stylesheet on each call
+- Injected plugins clear on client reload — only `export_plugin_to_pengu` is permanent
+- Ember.js DOM is async — debounce or use `wait_for_lol_element`
+- Tools timeout after 15 s if the LoL client / Pengu Loader is not running
