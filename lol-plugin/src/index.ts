@@ -24,10 +24,6 @@ function getCleanDOMSnapshot(): string {
   const scripts = clone.querySelectorAll("script, noscript");
   scripts.forEach((el) => el.remove());
 
-  // Remove our own injected style tag from the snapshot
-  const injectedStyle = clone.querySelector(`#${STYLE_TAG_ID}`);
-  if (injectedStyle) injectedStyle.remove();
-
   // Walk all elements and sanitize attributes
   const allElements = clone.querySelectorAll("*");
   allElements.forEach((el) => {
@@ -635,12 +631,18 @@ async function handleMessage(message: WSMessage): Promise<void> {
           sendError(requestId, `Plugin "${name}" not found`);
           return;
         }
-        const info = injectedPlugins.get(name)!;
+        const { cleanup, code, css } = injectedPlugins.get(name)!;
         // Cleanup existing
-        info.cleanup();
+        cleanup();
         injectedPlugins.delete(name);
-        // Re-execute with the same code and CSS
-        await executeAndRegisterPlugin(name, info.code, info.css);
+        // Re-execute with the same code and CSS.
+        // Restore a stub entry on failure so the plugin name/code is not permanently lost.
+        try {
+          await executeAndRegisterPlugin(name, code, css);
+        } catch (reexecErr) {
+          injectedPlugins.set(name, { cleanup: () => {}, code, css });
+          throw reexecErr;
+        }
         sendResponse(requestId, "PLUGIN_RELOADED", null, true);
         console.log(`[MCP Bridge] Plugin "${name}" reloaded`);
       } catch (err) {
