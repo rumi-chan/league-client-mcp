@@ -4,7 +4,7 @@ import { WebSocketServer, WebSocket } from "ws";
 import { z } from "zod";
 import { randomUUID } from "crypto";
 import { writeFile } from "fs/promises";
-import { join } from "path";
+import { join, basename } from "path";
 const WS_PORT = 8080;
 const REQUEST_TIMEOUT_MS = 15_000;
 
@@ -456,6 +456,9 @@ server.tool(
 
       const { code, css } = response.data;
 
+      // Sanitize name so it is safe to embed in generated JS string literals
+      const safeName = name.replace(/[^a-zA-Z0-9_-]/g, "_");
+
       // Build a self-contained Pengu Loader plugin
       const cssBlock = css
         ? `
@@ -470,10 +473,29 @@ function _injectCSS() {
 
       const cssCall = css ? "  _injectCSS();" : "";
       const styleIdConst = css
-        ? `const _STYLE_ID = 'pengu-plugin-${name}-style';`
+        ? `const _STYLE_ID = 'pengu-plugin-${safeName}-style';`
         : "";
 
-      const pluginSource = `// Pengu Loader Plugin: ${name}
+      const observerBlock = css
+        ? `
+  // Re-apply CSS on SPA navigation
+  let _debounce;
+  const _observer = new MutationObserver(() => {
+    clearTimeout(_debounce);
+    _debounce = setTimeout(() => {
+      if (!document.getElementById(_STYLE_ID)) _injectCSS();
+    }, 400);
+  });
+  _observer.observe(document.body, { childList: true, subtree: false });
+`
+        : "";
+
+      const observerCleanup = css ? "    _observer.disconnect();" : "";
+      const cssCleanup = css
+        ? "    const el = document.getElementById(_STYLE_ID); if (el) el.remove();"
+        : "";
+
+      const pluginSource = `// Pengu Loader Plugin: ${safeName}
 // Exported by league-client-mcp on ${new Date().toISOString()}
 
 ${styleIdConst}
@@ -485,28 +507,24 @@ ${cssCall}
   const _AsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
   const _fn = new _AsyncFunction(${JSON.stringify(code)});
   const _cleanup = await _fn();
-
-  // Re-apply on SPA navigation
-  let _debounce;
-  const _observer = new MutationObserver(() => {
-    clearTimeout(_debounce);
-    _debounce = setTimeout(async () => {
-${css ? "      if (!document.getElementById(_STYLE_ID)) _injectCSS();" : ""}
-    }, 400);
-  });
-  _observer.observe(document.body, { childList: true, subtree: false });
-
+${observerBlock}
   return () => {
-    _observer.disconnect();
+${observerCleanup}
     if (typeof _cleanup === 'function') _cleanup();
-${css ? "    const el = document.getElementById(_STYLE_ID); if (el) el.remove();" : ""}
+${cssCleanup}
   };
 }
 `;
 
+      const safeFileName = fileName ?? name;
+      if (basename(safeFileName) !== safeFileName) {
+        throw new Error(
+          "Invalid fileName: must not contain path separators or '..' sequences",
+        );
+      }
       const outputDir =
         penguPluginsPath ?? "C:\\Program Files\\Pengu Loader\\plugins";
-      const outputFile = join(outputDir, `${fileName ?? name}.js`);
+      const outputFile = join(outputDir, `${safeFileName}.js`);
       await writeFile(outputFile, pluginSource, "utf-8");
 
       return {
