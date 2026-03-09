@@ -7,6 +7,8 @@ import { writeFile } from "fs/promises";
 import { join, basename } from "path";
 const WS_PORT = 8080;
 const REQUEST_TIMEOUT_MS = 15_000;
+// Reserve 2 s for WebSocket round-trip so wait_for_lol_element never races the bridge timeout
+const WAIT_ELEMENT_MAX_MS = REQUEST_TIMEOUT_MS - 2_000;
 
 let pluginClient: WebSocket | null = null;
 
@@ -697,9 +699,9 @@ server.tool(
       .number()
       .int()
       .min(100)
-      .max(REQUEST_TIMEOUT_MS)
+      .max(WAIT_ELEMENT_MAX_MS)
       .optional()
-      .describe(`Max wait time in ms (default 10000, max ${REQUEST_TIMEOUT_MS})`),
+      .describe(`Max wait time in ms (default 10000, max ${WAIT_ELEMENT_MAX_MS})`),
     visible: z
       .boolean()
       .optional()
