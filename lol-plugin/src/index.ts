@@ -121,7 +121,9 @@ function connectWebSocket(): void {
   ws.addEventListener("message", (event) => {
     try {
       const message: WSMessage = JSON.parse(event.data as string);
-      handleMessage(message);
+      handleMessage(message).catch((err) => {
+        console.error("[MCP Bridge] Handler error:", err);
+      });
     } catch (err) {
       console.error("[MCP Bridge] Failed to parse message:", err);
     }
