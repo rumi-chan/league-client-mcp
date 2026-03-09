@@ -600,8 +600,8 @@ async function handleMessage(message: WSMessage): Promise<void> {
 
     case "RELOAD_CLIENT": {
       try {
-        // Pengu Loader exposes window.__llm_rpc or we can use the LCU endpoint
-        // Most reliable: use fetch to LCU reload endpoint
+        // Notify the server that the client is reloading, then trigger a full page reload.
+        // Currently implemented via window.location.reload() with a short delay.
         sendResponse(requestId, "CLIENT_RELOADING", null, true);
         console.log("[MCP Bridge] Reloading client...");
         setTimeout(() => window.location.reload(), 200);
