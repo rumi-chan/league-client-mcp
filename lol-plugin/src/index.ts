@@ -171,6 +171,46 @@ function sendError(requestId: string, error: string): void {
   ws.send(JSON.stringify({ requestId, error }));
 }
 
+/**
+ * Inject CSS and execute plugin code, then register the plugin in the map.
+ * If code execution throws, any injected style element is removed to avoid orphaning it.
+ */
+async function executeAndRegisterPlugin(
+  name: string,
+  code: string,
+  css?: string,
+): Promise<void> {
+  let styleEl: HTMLStyleElement | null = null;
+  if (css) {
+    styleEl = document.createElement("style");
+    styleEl.id = `mcp-plugin-css-${name}`;
+    styleEl.textContent = css;
+    document.head.appendChild(styleEl);
+  }
+
+  try {
+    const AsyncFunction = Object.getPrototypeOf(
+      async function () {},
+    ).constructor;
+    const fn = new AsyncFunction(code);
+    const result = await fn();
+
+    const pluginCleanup = typeof result === "function" ? result : () => {};
+    const cleanup = () => {
+      try {
+        pluginCleanup();
+      } catch (_) {}
+      if (styleEl) styleEl.remove();
+    };
+
+    injectedPlugins.set(name, { cleanup, code, css });
+  } catch (err) {
+    // Don't orphan the style element if execution failed
+    if (styleEl) styleEl.remove();
+    throw err;
+  }
+}
+
 async function handleMessage(message: WSMessage): Promise<void> {
   const { requestId, type, data } = message;
 
@@ -295,33 +335,7 @@ async function handleMessage(message: WSMessage): Promise<void> {
           injectedPlugins.delete(name);
         }
 
-        // Inject CSS if provided
-        let styleEl: HTMLStyleElement | null = null;
-        if (css) {
-          styleEl = document.createElement("style");
-          styleEl.id = `mcp-plugin-css-${name}`;
-          styleEl.textContent = css;
-          document.head.appendChild(styleEl);
-        }
-
-        // Execute the plugin code
-        const AsyncFunction = Object.getPrototypeOf(
-          async function () {},
-        ).constructor;
-        const fn = new AsyncFunction(code);
-        const result = await fn();
-
-        // The plugin code can return a cleanup function
-        const pluginCleanup = typeof result === "function" ? result : () => {};
-
-        const cleanup = () => {
-          try {
-            pluginCleanup();
-          } catch (_) {}
-          if (styleEl) styleEl.remove();
-        };
-
-        injectedPlugins.set(name, { cleanup, code, css });
+        await executeAndRegisterPlugin(name, code, css);
 
         sendResponse(requestId, "PLUGIN_INJECTED", null, true);
         console.log(`[MCP Bridge] Plugin "${name}" injected`);
@@ -623,28 +637,8 @@ async function handleMessage(message: WSMessage): Promise<void> {
         // Cleanup existing
         info.cleanup();
         injectedPlugins.delete(name);
-        // Re-inject CSS
-        let styleEl: HTMLStyleElement | null = null;
-        if (info.css) {
-          styleEl = document.createElement("style");
-          styleEl.id = `mcp-plugin-css-${name}`;
-          styleEl.textContent = info.css;
-          document.head.appendChild(styleEl);
-        }
-        // Re-execute code
-        const AsyncFunction = Object.getPrototypeOf(
-          async function () {},
-        ).constructor;
-        const fn = new AsyncFunction(info.code);
-        const result = await fn();
-        const pluginCleanup = typeof result === "function" ? result : () => {};
-        const cleanup = () => {
-          try {
-            pluginCleanup();
-          } catch (_) {}
-          if (styleEl) styleEl.remove();
-        };
-        injectedPlugins.set(name, { cleanup, code: info.code, css: info.css });
+        // Re-execute with the same code and CSS
+        await executeAndRegisterPlugin(name, info.code, info.css);
         sendResponse(requestId, "PLUGIN_RELOADED", null, true);
         console.log(`[MCP Bridge] Plugin "${name}" reloaded`);
       } catch (err) {
