@@ -134,18 +134,10 @@ return () => { obs.disconnect(); clearInterval(interval); };
 - `inject_lol_css` replaces entire stylesheet on each call
 - Injected plugins cleared on client reload — `export_plugin_to_pengu` makes them permanent
 - 15 s WebSocket timeout if LoL Client or Pengu Loader is not running
-```
-
 - Return a `() => void` — required for `reload_lol_plugin` and `remove_lol_plugin`
 - Debounce MutationObserver callbacks by ~350 ms
 - Use `await fetch('/lcu-endpoint').then(r => r.json())` for LCU data inside plugins
 - `await DataStore.set('key', val)` / `await DataStore.get('key')` for persistence
-
-## CSS Conventions
-
-- **Always `!important`** — LoL styles override without it
-- `position: fixed; z-index: 99999+` for overlays
-- Design tokens: `--font-display`, `--font-body`, `--color-gold-{1-5}`, `--color-blue-{1-6}`, `--color-grey-{1-6}`
 
 ## Common Selectors
 
@@ -155,11 +147,3 @@ return () => { obs.disconnect(); clearInterval(interval); };
 - Champ select: `.champion-select`
 - Primary button: `lol-uikit-flat-button[data-button-type='primary']`
 - Chat input: `.chat-typeahead-input`
-
-## Constraints
-
-- CEF/Chromium — ES2020+, no Node.js or browser extension APIs
-- `inject_lol_css` replaces the entire stylesheet on each call
-- Injected plugins clear on client reload — only `export_plugin_to_pengu` is permanent
-- Ember.js DOM is async — debounce or use `wait_for_lol_element`
-- Tools timeout after 15 s if the LoL client / Pengu Loader is not running
