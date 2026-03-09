@@ -216,7 +216,7 @@ Copy dist/index.js into a plugin folder inside your Pengu Loader plugins/ direct
 |---|---|
 | `click_lol_element` | Click a DOM element by CSS selector. |
 | `type_into_lol_element` | Type into an input, dispatching native events. |
-| `wait_for_lol_element` | Poll until a selector appears (up to 30 s). |
+| `wait_for_lol_element` | Poll until a selector appears (up to 13 s). |
 
 ### Client Utilities
 

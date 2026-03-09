@@ -163,7 +163,7 @@ wait for SPA navigation to complete.
 | Parameter | Type | Description |
 |---|---|---|
 | `selector` | `string` | Selector to wait for |
-| `timeout` | `number?` | Max wait in ms (default 10 000, max 30 000) |
+| `timeout` | `number?` | Max wait in ms (default 10 000, max 13 000) |
 | `visible` | `boolean?` | Also require non-zero bounding dimensions |
 
 ---
