@@ -679,9 +679,9 @@ server.tool(
       .number()
       .int()
       .min(100)
-      .max(30000)
+      .max(REQUEST_TIMEOUT_MS)
       .optional()
-      .describe("Max wait time in ms (default 10000)"),
+      .describe(`Max wait time in ms (default 10000, max ${REQUEST_TIMEOUT_MS})`),
     visible: z
       .boolean()
       .optional()
