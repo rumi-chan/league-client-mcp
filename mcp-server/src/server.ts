@@ -518,7 +518,7 @@ ${cssCleanup}
 }
 `;
 
-      const safeFileName = fileName ?? name;
+      const safeFileName = fileName ?? safeName;
       if (basename(safeFileName) !== safeFileName) {
         throw new Error(
           "Invalid fileName: must not contain path separators or '..' sequences",
