@@ -7,7 +7,7 @@
     "type": "module",
     "module": "./dist/index.js",
     "config": {
-        "penguPath": "YOUR PENGU PATH HERE"
+        "penguPath": "C:\\Program Files\\Pengu Loader"
     },
     "scripts": {
         "dev": "tsup --watch",
