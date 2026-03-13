@@ -107,19 +107,32 @@ function sendToPlugin(
   });
 }
 
-const server = new McpServer({
-  name: "league-client-mcp-server",
-  version: "1.0.0",
-});
+const server = new McpServer(
+  {
+    name: "league-client-mcp-server",
+    version: "1.0.0",
+  },
+  {
+    capabilities: {
+      logging: {},
+    },
+  },
+);
 
 // Tool 1: Get DOM Snapshot
-server.tool(
+server.registerTool(
   "get_lol_dom_snapshot",
-  "Captures the current DOM tree of the League of Legends Client. " +
-    "Returns a sanitized HTML string (SVG paths, long src attributes, and " +
-    "unnecessary attributes are stripped to reduce size). " +
-    "Use this to understand the current UI structure before designing CSS.",
-  {},
+  {
+    title: "Get DOM Snapshot",
+    description:
+      "Captures the current DOM tree of the League of Legends Client. " +
+      "Returns a sanitized HTML string (SVG paths, long src attributes, and " +
+      "unnecessary attributes are stripped to reduce size). " +
+      "Use this to understand the current UI structure before designing CSS.",
+    annotations: {
+      readOnlyHint: true,
+    },
+  },
   async () => {
     try {
       const response = (await sendToPlugin("GET_DOM")) as {
@@ -146,20 +159,27 @@ server.tool(
 );
 
 // Tool 2: Inject CSS
-server.tool(
+server.registerTool(
   "inject_lol_css",
-  "Injects or updates CSS styles in the League of Legends Client. " +
-    "The CSS will be inserted into a <style> tag in the document head. " +
-    "Subsequent calls will replace the previously injected CSS. " +
-    "Use !important to override existing League Client styles.",
   {
-    css: z
-      .string()
-      .describe(
-        "The CSS string to inject into the LoL Client. " +
-          "Use standard CSS syntax. CSS variables like --font-display, " +
-          "--font-body are available for theming.",
-      ),
+    title: "Inject CSS",
+    description:
+      "Injects or updates CSS styles in the League of Legends Client. " +
+      "The CSS will be inserted into a <style> tag in the document head. " +
+      "Subsequent calls will replace the previously injected CSS. " +
+      "Use !important to override existing League Client styles.",
+    inputSchema: z.object({
+      css: z
+        .string()
+        .describe(
+          "The CSS string to inject into the LoL Client. " +
+            "Use standard CSS syntax. CSS variables like --font-display, " +
+            "--font-body are available for theming.",
+        ),
+    }),
+    annotations: {
+      idempotentHint: true,
+    },
   },
   async ({ css }) => {
     try {
@@ -189,19 +209,26 @@ server.tool(
 );
 
 // Tool 3: Execute JavaScript
-server.tool(
+server.registerTool(
   "execute_lol_javascript",
-  "Executes JavaScript code inside the League of Legends Client context. " +
-    "Has access to the DOM, window object, and Pengu Loader APIs. " +
-    "Use this to interact with UI elements, read client state, or build dynamic features. " +
-    "The code runs via AsyncFunction so you can use await. Returns the result as a string.",
   {
-    code: z
-      .string()
-      .describe(
-        "JavaScript code to execute in the LoL Client. " +
-          "Can use await. The return value of the last expression will be sent back.",
-      ),
+    title: "Execute JavaScript",
+    description:
+      "Executes JavaScript code inside the League of Legends Client context. " +
+      "Has access to the DOM, window object, and Pengu Loader APIs. " +
+      "Use this to interact with UI elements, read client state, or build dynamic features. " +
+      "The code runs via AsyncFunction so you can use await. Returns the result as a string.",
+    inputSchema: z.object({
+      code: z
+        .string()
+        .describe(
+          "JavaScript code to execute in the LoL Client. " +
+            "Can use await. The return value of the last expression will be sent back.",
+        ),
+    }),
+    annotations: {
+      openWorldHint: true,
+    },
   },
   async ({ code }) => {
     try {
@@ -232,34 +259,41 @@ server.tool(
 );
 
 // Tool 4: LCU API Request
-server.tool(
+server.registerTool(
   "lcu_request",
-  "Makes HTTP requests to the League Client Update (LCU) REST API. " +
-    "The LCU API provides access to game data, summoner info, champion select, " +
-    "lobby management, runes, match history, and more. " +
-    "Common endpoints: " +
-    "/lol-summoner/v1/current-summoner, " +
-    "/lol-gameflow/v1/gameflow-phase, " +
-    "/lol-champ-select/v1/session, " +
-    "/lol-lobby/v2/lobby, " +
-    "/lol-chat/v1/friends.",
   {
-    method: z
-      .enum(["GET", "POST", "PUT", "PATCH", "DELETE"])
-      .default("GET")
-      .describe("HTTP method"),
-    endpoint: z
-      .string()
-      .describe(
-        "LCU API endpoint path (e.g. /lol-summoner/v1/current-summoner). " +
-          "Must start with /.",
-      ),
-    body: z
-      .any()
-      .optional()
-      .describe(
-        "Request body for POST/PUT/PATCH requests (will be JSON-serialized)",
-      ),
+    title: "LCU API Request",
+    description:
+      "Makes HTTP requests to the League Client Update (LCU) REST API. " +
+      "The LCU API provides access to game data, summoner info, champion select, " +
+      "lobby management, runes, match history, and more. " +
+      "Common endpoints: " +
+      "/lol-summoner/v1/current-summoner, " +
+      "/lol-gameflow/v1/gameflow-phase, " +
+      "/lol-champ-select/v1/session, " +
+      "/lol-lobby/v2/lobby, " +
+      "/lol-chat/v1/friends.",
+    inputSchema: z.object({
+      method: z
+        .enum(["GET", "POST", "PUT", "PATCH", "DELETE"])
+        .default("GET")
+        .describe("HTTP method"),
+      endpoint: z
+        .string()
+        .describe(
+          "LCU API endpoint path (e.g. /lol-summoner/v1/current-summoner). " +
+            "Must start with /.",
+        ),
+      body: z
+        .any()
+        .optional()
+        .describe(
+          "Request body for POST/PUT/PATCH requests (will be JSON-serialized)",
+        ),
+    }),
+    annotations: {
+      openWorldHint: true,
+    },
   },
   async ({ method, endpoint, body }) => {
     try {
@@ -294,30 +328,37 @@ server.tool(
 );
 
 // Tool 5: Inject JavaScript Plugin
-server.tool(
+server.registerTool(
   "inject_lol_plugin",
-  "Injects a persistent JavaScript plugin into the League Client. " +
-    "The plugin code is stored by name and survives navigation changes within the client. " +
-    "Use this to create full-featured plugins with both CSS and JS. " +
-    "Calling again with the same name will update the existing plugin. " +
-    "The code has access to the DOM, window, and all Pengu Loader APIs.",
   {
-    name: z
-      .string()
-      .describe(
-        "Unique name/identifier for this plugin (e.g. 'auto-accept', 'custom-background')",
-      ),
-    code: z
-      .string()
-      .describe(
-        "JavaScript code for the plugin. This will be executed immediately " +
-          "and re-executed on client navigation. Can include DOM manipulation, " +
-          "event listeners, mutation observers, intervals, etc.",
-      ),
-    css: z
-      .string()
-      .optional()
-      .describe("Optional CSS to inject alongside the plugin JavaScript"),
+    title: "Inject Plugin",
+    description:
+      "Injects a persistent JavaScript plugin into the League Client. " +
+      "The plugin code is stored by name and survives navigation changes within the client. " +
+      "Use this to create full-featured plugins with both CSS and JS. " +
+      "Calling again with the same name will update the existing plugin. " +
+      "The code has access to the DOM, window, and all Pengu Loader APIs.",
+    inputSchema: z.object({
+      name: z
+        .string()
+        .describe(
+          "Unique name/identifier for this plugin (e.g. 'auto-accept', 'custom-background')",
+        ),
+      code: z
+        .string()
+        .describe(
+          "JavaScript code for the plugin. This will be executed immediately " +
+            "and re-executed on client navigation. Can include DOM manipulation, " +
+            "event listeners, mutation observers, intervals, etc.",
+        ),
+      css: z
+        .string()
+        .optional()
+        .describe("Optional CSS to inject alongside the plugin JavaScript"),
+    }),
+    annotations: {
+      idempotentHint: true,
+    },
   },
   async ({ name, code, css }) => {
     try {
@@ -351,11 +392,18 @@ server.tool(
 );
 
 // Tool 6: Remove Injected Plugin
-server.tool(
+server.registerTool(
   "remove_lol_plugin",
-  "Removes a previously injected plugin by name from the League Client.",
   {
-    name: z.string().describe("Name of the plugin to remove"),
+    title: "Remove Plugin",
+    description:
+      "Removes a previously injected plugin by name from the League Client.",
+    inputSchema: z.object({
+      name: z.string().describe("Name of the plugin to remove"),
+    }),
+    annotations: {
+      destructiveHint: true,
+    },
   },
   async ({ name }) => {
     try {
@@ -385,11 +433,17 @@ server.tool(
 );
 
 // Tool 7: Get Client State
-server.tool(
+server.registerTool(
   "get_lol_client_state",
-  "Returns information about the current state of the League Client: " +
-    "current URL/page, document title, viewport size, and whether the client is connected.",
-  {},
+  {
+    title: "Get Client State",
+    description:
+      "Returns information about the current state of the League Client: " +
+      "current URL/page, document title, viewport size, and whether the client is connected.",
+    annotations: {
+      readOnlyHint: true,
+    },
+  },
   async () => {
     try {
       const response = (await sendToPlugin("GET_CLIENT_STATE")) as {
@@ -419,33 +473,37 @@ server.tool(
 );
 
 // Tool 8: Export plugin to Pengu Loader
-server.tool(
+server.registerTool(
   "export_plugin_to_pengu",
-  "Exports a currently-injected plugin from the live League Client into a real, " +
-    "persistent Pengu Loader plugin file. " +
-    "The plugin is fetched from the MCP bridge (so it must be currently injected via inject_lol_plugin), " +
-    "then wrapped in a proper Pengu Loader module with init() and load() exports, " +
-    "and written directly to the Pengu Loader plugins folder. " +
-    "After a client reload the plugin will load automatically on every startup without the MCP bridge.",
   {
-    name: z
-      .string()
-      .describe(
-        "Name of the currently-injected plugin to export (as used in inject_lol_plugin)",
-      ),
-    fileName: z
-      .string()
-      .optional()
-      .describe(
-        "Output filename without extension (defaults to the plugin name). E.g. 'my-cool-plugin'",
-      ),
-    penguPluginsPath: z
-      .string()
-      .optional()
-      .describe(
-        "Absolute path to the Pengu Loader plugins folder. " +
-          "Defaults to C:\\Program Files\\Pengu Loader\\plugins",
-      ),
+    title: "Export Plugin to Pengu",
+    description:
+      "Exports a currently-injected plugin from the live League Client into a real, " +
+      "persistent Pengu Loader plugin file. " +
+      "The plugin is fetched from the MCP bridge (so it must be currently injected via inject_lol_plugin), " +
+      "then wrapped in a proper Pengu Loader module with init() and load() exports, " +
+      "and written directly to the Pengu Loader plugins folder. " +
+      "After a client reload the plugin will load automatically on every startup without the MCP bridge.",
+    inputSchema: z.object({
+      name: z
+        .string()
+        .describe(
+          "Name of the currently-injected plugin to export (as used in inject_lol_plugin)",
+        ),
+      fileName: z
+        .string()
+        .optional()
+        .describe(
+          "Output filename without extension (defaults to the plugin name). E.g. 'my-cool-plugin'",
+        ),
+      penguPluginsPath: z
+        .string()
+        .optional()
+        .describe(
+          "Absolute path to the Pengu Loader plugins folder. " +
+            "Defaults to C:\\Program Files\\Pengu Loader\\plugins",
+        ),
+    }),
   },
   async ({ name, fileName, penguPluginsPath }) => {
     try {
@@ -552,21 +610,25 @@ ${cssCleanup}
 );
 
 // Tool 9: Click Element
-server.tool(
+server.registerTool(
   "click_lol_element",
-  "Clicks a DOM element in the League Client by CSS selector. " +
-    "Use get_lol_dom_snapshot first to find the right selector. " +
-    "Useful for navigating between pages, pressing buttons, selecting tabs.",
   {
-    selector: z.string().describe("CSS selector for the element to click"),
-    index: z
-      .number()
-      .int()
-      .min(0)
-      .optional()
-      .describe(
-        "If selector matches multiple elements, which one to click (0-based, default 0)",
-      ),
+    title: "Click Element",
+    description:
+      "Clicks a DOM element in the League Client by CSS selector. " +
+      "Use get_lol_dom_snapshot first to find the right selector. " +
+      "Useful for navigating between pages, pressing buttons, selecting tabs.",
+    inputSchema: z.object({
+      selector: z.string().describe("CSS selector for the element to click"),
+      index: z
+        .number()
+        .int()
+        .min(0)
+        .optional()
+        .describe(
+          "If selector matches multiple elements, which one to click (0-based, default 0)",
+        ),
+    }),
   },
   async ({ selector, index }) => {
     try {
@@ -597,19 +659,23 @@ server.tool(
 );
 
 // Tool 10: Type Into Element
-server.tool(
+server.registerTool(
   "type_into_lol_element",
-  "Types text into an input or textarea element in the League Client. " +
-    "Dispatches native input/change events so React/Ember frameworks pick it up.",
   {
-    selector: z
-      .string()
-      .describe("CSS selector for the input/textarea element"),
-    text: z.string().describe("Text to type into the element"),
-    clear: z
-      .boolean()
-      .optional()
-      .describe("Clear existing value before typing (default false)"),
+    title: "Type Into Element",
+    description:
+      "Types text into an input or textarea element in the League Client. " +
+      "Dispatches native input/change events so React/Ember frameworks pick it up.",
+    inputSchema: z.object({
+      selector: z
+        .string()
+        .describe("CSS selector for the input/textarea element"),
+      text: z.string().describe("Text to type into the element"),
+      clear: z
+        .boolean()
+        .optional()
+        .describe("Clear existing value before typing (default false)"),
+    }),
   },
   async ({ selector, text, clear }) => {
     try {
@@ -641,23 +707,32 @@ server.tool(
 );
 
 // Tool 11: Query Element
-server.tool(
+server.registerTool(
   "query_lol_element",
-  "Returns detailed info about a DOM element: text, bounding rect, computed styles, " +
-    "and requested attributes. More efficient than a full DOM snapshot when you just " +
-    "need to inspect one element (e.g. verify a style applied correctly).",
   {
-    selector: z.string().describe("CSS selector for the element to query"),
-    index: z
-      .number()
-      .int()
-      .min(0)
-      .optional()
-      .describe("Which match to inspect (0-based, default 0)"),
-    attributes: z
-      .array(z.string())
-      .optional()
-      .describe("Extra HTML attributes to read back (e.g. ['href', 'class'])"),
+    title: "Query Element",
+    description:
+      "Returns detailed info about a DOM element: text, bounding rect, computed styles, " +
+      "and requested attributes. More efficient than a full DOM snapshot when you just " +
+      "need to inspect one element (e.g. verify a style applied correctly).",
+    inputSchema: z.object({
+      selector: z.string().describe("CSS selector for the element to query"),
+      index: z
+        .number()
+        .int()
+        .min(0)
+        .optional()
+        .describe("Which match to inspect (0-based, default 0)"),
+      attributes: z
+        .array(z.string())
+        .optional()
+        .describe(
+          "Extra HTML attributes to read back (e.g. ['href', 'class'])",
+        ),
+    }),
+    annotations: {
+      readOnlyHint: true,
+    },
   },
   async ({ selector, index, attributes }) => {
     try {
@@ -689,23 +764,32 @@ server.tool(
 );
 
 // Tool 12: Wait For Element
-server.tool(
+server.registerTool(
   "wait_for_lol_element",
-  "Waits until a CSS selector matches an element in the League Client DOM, then returns its info. " +
-    "Use after click_lol_element to wait for the next page to load before snapshotting or querying.",
   {
-    selector: z.string().describe("CSS selector to wait for"),
-    timeout: z
-      .number()
-      .int()
-      .min(100)
-      .max(WAIT_ELEMENT_MAX_MS)
-      .optional()
-      .describe(`Max wait time in ms (default 10000, max ${WAIT_ELEMENT_MAX_MS})`),
-    visible: z
-      .boolean()
-      .optional()
-      .describe("Also require the element to be visible (non-zero size)"),
+    title: "Wait For Element",
+    description:
+      "Waits until a CSS selector matches an element in the League Client DOM, then returns its info. " +
+      "Use after click_lol_element to wait for the next page to load before snapshotting or querying.",
+    inputSchema: z.object({
+      selector: z.string().describe("CSS selector to wait for"),
+      timeout: z
+        .number()
+        .int()
+        .min(100)
+        .max(WAIT_ELEMENT_MAX_MS)
+        .optional()
+        .describe(
+          `Max wait time in ms (default 10000, max ${WAIT_ELEMENT_MAX_MS})`,
+        ),
+      visible: z
+        .boolean()
+        .optional()
+        .describe("Also require the element to be visible (non-zero size)"),
+    }),
+    annotations: {
+      readOnlyHint: true,
+    },
   },
   async ({ selector, timeout, visible }) => {
     try {
@@ -737,12 +821,18 @@ server.tool(
 );
 
 // Tool 13: Performance Metrics
-server.tool(
+server.registerTool(
   "get_lol_performance_metrics",
-  "Returns performance and memory metrics from the League Client: " +
-    "JS heap usage, DOM node count, stylesheet count, paint timings. " +
-    "Use this to debug heavy plugins or check if CSS injection bloats the client.",
-  {},
+  {
+    title: "Get Performance Metrics",
+    description:
+      "Returns performance and memory metrics from the League Client: " +
+      "JS heap usage, DOM node count, stylesheet count, paint timings. " +
+      "Use this to debug heavy plugins or check if CSS injection bloats the client.",
+    annotations: {
+      readOnlyHint: true,
+    },
+  },
   async () => {
     try {
       const response = (await sendToPlugin("GET_PERFORMANCE_METRICS")) as {
@@ -769,12 +859,18 @@ server.tool(
 );
 
 // Tool 14: Reload Client
-server.tool(
+server.registerTool(
   "reload_lol_client",
-  "Reloads the entire League Client (equivalent to Pengu Loader's reload shortcut). " +
-    "Use after deploying a new plugin via export_plugin_to_pengu to activate it, " +
-    "or to reset the client UI to a clean state during development.",
-  {},
+  {
+    title: "Reload Client",
+    description:
+      "Reloads the entire League Client (equivalent to Pengu Loader's reload shortcut). " +
+      "Use after deploying a new plugin via export_plugin_to_pengu to activate it, " +
+      "or to reset the client UI to a clean state during development.",
+    annotations: {
+      destructiveHint: true,
+    },
+  },
   async () => {
     try {
       await sendToPlugin("RELOAD_CLIENT");
@@ -794,12 +890,16 @@ server.tool(
 );
 
 // Tool 15: Reload injected plugin
-server.tool(
+server.registerTool(
   "reload_lol_plugin",
-  "Tears down and re-executes an injected plugin by name without touching other plugins. " +
-    "Use after updating plugin code via inject_lol_plugin to restart it cleanly.",
   {
-    name: z.string().describe("Name of the injected plugin to reload"),
+    title: "Reload Plugin",
+    description:
+      "Tears down and re-executes an injected plugin by name without touching other plugins. " +
+      "Use after updating plugin code via inject_lol_plugin to restart it cleanly.",
+    inputSchema: z.object({
+      name: z.string().describe("Name of the injected plugin to reload"),
+    }),
   },
   async ({ name }) => {
     try {
