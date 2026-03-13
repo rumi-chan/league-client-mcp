@@ -51,7 +51,7 @@ League must be running with Pengu Loader active. 16 MCP tools available.
 | `wait_for_lol_element` | Wait for element after navigation |
 | `get_lol_client_state` | Current URL and active plugins |
 | `get_lol_performance_metrics` | Heap, DOM nodes, paint timings |
-| `get_lol_screenshot` | Capture LeagueClientUx to temp PNG (auto-delete) |
+| `get_lol_screenshot` | Capture LeagueClientUx to temp PNG |
 | `reload_lol_client` | Full client reload |
 
 ## Key LCU Endpoints

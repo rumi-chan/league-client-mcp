@@ -181,7 +181,7 @@ performance.
 
 #### `get_lol_screenshot`
 Captures a screenshot of the `LeagueClientUx` window and saves it to a temporary PNG file.
-Returns the temp path and auto-delete timing (`autoDeleteMs`, default 120000).
+Returns the temp path. Use this to visually verify changes or for debugging.
 Windows-only implementation.
 
 #### `reload_lol_client`

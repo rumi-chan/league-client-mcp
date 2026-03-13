@@ -122,7 +122,7 @@ get_lol_dom_snapshot()
 
 **`get_lol_client_state`** — Active URL, viewport, document title, list of injected plugins.
 **`get_lol_performance_metrics`** — JS heap, DOM node count, stylesheet count, paint timings.
-**`get_lol_screenshot`** — Captures `LeagueClientUx` into a temporary PNG file and returns temp path + auto-delete timing. Windows-only.
+**`get_lol_screenshot`** — Captures `LeagueClientUx` into a temporary PNG file and returns temp path. Use this to visually verify changes or for debugging. Windows-only.
 **`reload_lol_client`** — Full client reload; clears all injected plugins.
 
 ---

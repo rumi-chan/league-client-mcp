@@ -4,7 +4,7 @@ import { WebSocketServer, WebSocket } from "ws";
 import { z } from "zod";
 import { randomUUID } from "crypto";
 import { execFile } from "child_process";
-import { unlink, writeFile } from "fs/promises";
+import { writeFile } from "fs/promises";
 import { join, basename } from "path";
 import { tmpdir } from "os";
 const WS_PORT = 8080;
@@ -545,22 +545,12 @@ server.registerTool(
         .describe(
           "Also return the full PNG data URL in the response text (can be large).",
         ),
-      autoDeleteMs: z
-        .number()
-        .int()
-        .min(5_000)
-        .max(3_600_000)
-        .optional()
-        .default(120_000)
-        .describe(
-          "Auto-delete delay for temp file in milliseconds (default 120000).",
-        ),
     }),
     annotations: {
       readOnlyHint: true,
     },
   },
-  async ({ saveToDisk, fileName, returnDataUrl, autoDeleteMs }) => {
+  async ({ saveToDisk, fileName, returnDataUrl }) => {
     try {
       const output: string[] = [];
 
@@ -644,15 +634,9 @@ finally {
 
       await runPowerShell(psScript);
 
-      setTimeout(() => {
-        unlink(targetPath).catch(() => {
-          // Ignore cleanup errors for temp files.
-        });
-      }, autoDeleteMs).unref();
-
       output.push("Screenshot captured from League Client window handle.");
       output.push(`Temp file: ${targetPath}`);
-      output.push(`Auto-delete in: ${autoDeleteMs} ms`);
+      output.push("Remove it manually when done.");
 
       return {
         content: [
