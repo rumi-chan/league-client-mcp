@@ -3,8 +3,10 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { WebSocketServer, WebSocket } from "ws";
 import { z } from "zod";
 import { randomUUID } from "crypto";
-import { writeFile } from "fs/promises";
+import { execFile } from "child_process";
+import { unlink, writeFile } from "fs/promises";
 import { join, basename } from "path";
+import { tmpdir } from "os";
 const WS_PORT = 8080;
 const REQUEST_TIMEOUT_MS = 15_000;
 // Reserve 2 s for WebSocket round-trip so wait_for_lol_element never races the bridge timeout
@@ -104,6 +106,50 @@ function sendToPlugin(
     });
 
     pluginClient.send(JSON.stringify({ requestId, type, data }));
+  });
+}
+
+function runPowerShell(command: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    execFile(
+      "powershell",
+      [
+        "-NoProfile",
+        "-NonInteractive",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-Command",
+        command,
+      ],
+      {
+        windowsHide: true,
+        maxBuffer: 1024 * 1024,
+        // Prevent MCP from appearing frozen if PrintWindow/PowerShell hangs.
+        timeout: 10_000,
+      },
+      (error, _stdout, stderr) => {
+        if (error) {
+          if (error.message.includes("timed out")) {
+            reject(
+              new Error(
+                "Screenshot command timed out after 10s. " +
+                  "League Client may be minimized/not responding.",
+              ),
+            );
+            return;
+          }
+          reject(
+            new Error(
+              stderr?.trim() ||
+                error.message ||
+                "PowerShell screenshot command failed",
+            ),
+          );
+          return;
+        }
+        resolve();
+      },
+    );
   });
 }
 
@@ -459,6 +505,160 @@ server.registerTool(
               typeof response.data === "string"
                 ? response.data
                 : JSON.stringify(response.data, null, 2),
+          },
+        ],
+      };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return {
+        content: [{ type: "text" as const, text: `Error: ${message}` }],
+        isError: true,
+      };
+    }
+  },
+);
+
+// Tool 8: Screenshot
+server.registerTool(
+  "get_lol_screenshot",
+  {
+    title: "Get Client Screenshot",
+    description:
+      "Captures a PNG screenshot of the current League Client viewport. " +
+      "Saves to a temporary file and returns the file path.",
+    inputSchema: z.object({
+      saveToDisk: z
+        .boolean()
+        .optional()
+        .default(true)
+        .describe("Write screenshot to a temporary PNG file (default true)"),
+      fileName: z
+        .string()
+        .optional()
+        .describe(
+          "Optional temp file name, e.g. 'client-shot.png'. Ignored when saveToDisk is false.",
+        ),
+      returnDataUrl: z
+        .boolean()
+        .optional()
+        .default(false)
+        .describe(
+          "Also return the full PNG data URL in the response text (can be large).",
+        ),
+      autoDeleteMs: z
+        .number()
+        .int()
+        .min(5_000)
+        .max(3_600_000)
+        .optional()
+        .default(120_000)
+        .describe(
+          "Auto-delete delay for temp file in milliseconds (default 120000).",
+        ),
+    }),
+    annotations: {
+      readOnlyHint: true,
+    },
+  },
+  async ({ saveToDisk, fileName, returnDataUrl, autoDeleteMs }) => {
+    try {
+      const output: string[] = [];
+
+      if (!saveToDisk) {
+        throw new Error(
+          "Direct screenshot mode currently supports only saveToDisk=true",
+        );
+      }
+      if (returnDataUrl) {
+        throw new Error(
+          "returnDataUrl is not supported in direct screenshot mode",
+        );
+      }
+
+      const defaultFileName = `lol-client-screenshot-${Date.now()}.png`;
+      const targetName = fileName ?? defaultFileName;
+
+      if (basename(targetName) !== targetName) {
+        throw new Error(
+          "Invalid fileName: must not contain path separators or '..'",
+        );
+      }
+
+      const targetDir = tmpdir();
+      const targetPath = join(targetDir, targetName);
+      const escapedPath = targetPath.replace(/'/g, "''");
+
+      const psScript = `
+$ErrorActionPreference = 'Stop'
+Add-Type -AssemblyName System.Drawing
+Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+public struct RECT { public int Left; public int Top; public int Right; public int Bottom; }
+public static class Win32 {
+  [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
+  [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr hWnd);
+  [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr hwnd, IntPtr hDC, uint nFlags);
+}
+"@
+
+$proc = Get-Process -Name 'LeagueClientUx' -ErrorAction SilentlyContinue |
+  Where-Object {
+    $_.MainWindowHandle -ne 0 -and
+    $_.MainWindowTitle -like '*League of Legends*'
+  } |
+  Select-Object -First 1
+
+if ([Win32]::IsIconic($proc.MainWindowHandle)) {
+  throw 'League Client window is minimized. Restore it and try again.'
+}
+
+$rect = New-Object RECT
+[Win32]::GetWindowRect($proc.MainWindowHandle, [ref]$rect) | Out-Null
+
+$width = [Math]::Max(1, $rect.Right - $rect.Left)
+$height = [Math]::Max(1, $rect.Bottom - $rect.Top)
+
+$bmp = New-Object System.Drawing.Bitmap($width, $height)
+$gfx = [System.Drawing.Graphics]::FromImage($bmp)
+try {
+  $hdc = $gfx.GetHdc()
+  try {
+    $ok = [Win32]::PrintWindow($proc.MainWindowHandle, $hdc, 0)
+  }
+  finally {
+    $gfx.ReleaseHdc($hdc)
+  }
+
+  if (-not $ok) {
+    throw 'PrintWindow failed for League Client window.'
+  }
+
+  $bmp.Save('${escapedPath}', [System.Drawing.Imaging.ImageFormat]::Png)
+}
+finally {
+  $gfx.Dispose()
+  $bmp.Dispose()
+}
+`;
+
+      await runPowerShell(psScript);
+
+      setTimeout(() => {
+        unlink(targetPath).catch(() => {
+          // Ignore cleanup errors for temp files.
+        });
+      }, autoDeleteMs).unref();
+
+      output.push("Screenshot captured from League Client window handle.");
+      output.push(`Temp file: ${targetPath}`);
+      output.push(`Auto-delete in: ${autoDeleteMs} ms`);
+
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: output.join("\n"),
           },
         ],
       };
