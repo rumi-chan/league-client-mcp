@@ -103,6 +103,8 @@ cleanup `() => void` — required for reload/remove to work correctly.
 
 **`get_lol_performance_metrics`** — JS heap, DOM nodes, stylesheet count, paint timings.
 
+**`get_lol_screenshot`** — Captures `LeagueClientUx` into a temporary PNG file and returns temp path + auto-delete timing. Windows-only.
+
 **`reload_lol_client`** — Full client reload. Clears all injected plugins.
 
 ---

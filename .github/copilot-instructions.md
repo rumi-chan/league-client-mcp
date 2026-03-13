@@ -17,7 +17,7 @@ GitHub Copilot  ──MCP stdio──►  MCP Server (Node.js)
 ```
 
 **Prerequisites:** League of Legends must be running with Pengu Loader active. The plugin
-auto-connects on client load. All 15 tools are unavailable until the plugin connects.
+auto-connects on client load. All 16 tools are unavailable until the plugin connects.
 
 ---
 
@@ -122,6 +122,7 @@ get_lol_dom_snapshot()
 
 **`get_lol_client_state`** — Active URL, viewport, document title, list of injected plugins.
 **`get_lol_performance_metrics`** — JS heap, DOM node count, stylesheet count, paint timings.
+**`get_lol_screenshot`** — Captures `LeagueClientUx` into a temporary PNG file and returns temp path + auto-delete timing. Windows-only.
 **`reload_lol_client`** — Full client reload; clears all injected plugins.
 
 ---
