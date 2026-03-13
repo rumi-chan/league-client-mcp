@@ -224,6 +224,7 @@ Copy dist/index.js into a plugin folder inside your Pengu Loader plugins/ direct
 |---|---|
 | `get_lol_client_state` | Active URL, viewport, document title, list of injected plugins. |
 | `get_lol_performance_metrics` | JS heap, DOM node count, stylesheet count, paint timings. |
+| `get_lol_screenshot` | Captures the LeagueClientUx window screenshot into a temporary PNG file. Returns temp file path. Windows-only. |
 | `reload_lol_client` | Full client reload. Clears all injected plugins. |
 
 ---

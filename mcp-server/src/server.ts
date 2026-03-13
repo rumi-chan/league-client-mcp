@@ -3,8 +3,10 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { WebSocketServer, WebSocket } from "ws";
 import { z } from "zod";
 import { randomUUID } from "crypto";
+import { execFile } from "child_process";
 import { writeFile } from "fs/promises";
 import { join, basename } from "path";
+import { tmpdir } from "os";
 const WS_PORT = 8080;
 const REQUEST_TIMEOUT_MS = 15_000;
 // Reserve 2 s for WebSocket round-trip so wait_for_lol_element never races the bridge timeout
@@ -104,6 +106,50 @@ function sendToPlugin(
     });
 
     pluginClient.send(JSON.stringify({ requestId, type, data }));
+  });
+}
+
+function runPowerShell(command: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    execFile(
+      "powershell",
+      [
+        "-NoProfile",
+        "-NonInteractive",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-Command",
+        command,
+      ],
+      {
+        windowsHide: true,
+        maxBuffer: 1024 * 1024,
+        // Prevent MCP from appearing frozen if PrintWindow/PowerShell hangs.
+        timeout: 10_000,
+      },
+      (error, _stdout, stderr) => {
+        if (error) {
+          if (error.killed) {
+            reject(
+              new Error(
+                "Screenshot command timed out after 10s. " +
+                  "League Client may be minimized/not responding.",
+              ),
+            );
+            return;
+          }
+          reject(
+            new Error(
+              stderr?.trim() ||
+                error.message ||
+                "PowerShell screenshot command failed",
+            ),
+          );
+          return;
+        }
+        resolve();
+      },
+    );
   });
 }
 
@@ -472,7 +518,128 @@ server.registerTool(
   },
 );
 
-// Tool 8: Export plugin to Pengu Loader
+// Tool 8: Screenshot
+server.registerTool(
+  "get_lol_screenshot",
+  {
+    title: "Get Client Screenshot",
+    description:
+      "Captures a PNG screenshot of the current League Client viewport. " +
+      "Saves to a temporary file and returns the file path.",
+    inputSchema: z.object({
+      fileName: z
+        .string()
+        .optional()
+        .describe(
+          "Optional temp file name, e.g. 'client-shot.png'.",
+        ),
+    }),
+    annotations: {
+      readOnlyHint: true,
+    },
+  },
+  async ({ fileName }) => {
+    try {
+      if (process.platform !== "win32") {
+        throw new Error(
+          "get_lol_screenshot is only supported on Windows.",
+        );
+      }
+
+      const output: string[] = [];
+
+      const defaultFileName = `lol-client-screenshot-${Date.now()}.png`;
+      const targetName = fileName ?? defaultFileName;
+
+      if (basename(targetName) !== targetName) {
+        throw new Error(
+          "Invalid fileName: must not contain path separators or '..'",
+        );
+      }
+
+      const targetDir = tmpdir();
+      const targetPath = join(targetDir, targetName);
+      const escapedPath = targetPath.replace(/'/g, "''");
+
+      const psScript = `
+$ErrorActionPreference = 'Stop'
+Add-Type -AssemblyName System.Drawing
+Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+public struct RECT { public int Left; public int Top; public int Right; public int Bottom; }
+public static class Win32 {
+  [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
+  [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr hWnd);
+  [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr hwnd, IntPtr hDC, uint nFlags);
+}
+"@
+
+$proc = Get-Process -Name 'LeagueClientUx' -ErrorAction SilentlyContinue |
+  Where-Object {
+    $_.MainWindowHandle -ne 0 -and
+    $_.MainWindowTitle -like '*League of Legends*'
+  } |
+  Select-Object -First 1
+
+if ([Win32]::IsIconic($proc.MainWindowHandle)) {
+  throw 'League Client window is minimized. Restore it and try again.'
+}
+
+$rect = New-Object RECT
+[Win32]::GetWindowRect($proc.MainWindowHandle, [ref]$rect) | Out-Null
+
+$width = [Math]::Max(1, $rect.Right - $rect.Left)
+$height = [Math]::Max(1, $rect.Bottom - $rect.Top)
+
+$bmp = New-Object System.Drawing.Bitmap($width, $height)
+$gfx = [System.Drawing.Graphics]::FromImage($bmp)
+try {
+  $hdc = $gfx.GetHdc()
+  try {
+    $ok = [Win32]::PrintWindow($proc.MainWindowHandle, $hdc, 0)
+  }
+  finally {
+    $gfx.ReleaseHdc($hdc)
+  }
+
+  if (-not $ok) {
+    throw 'PrintWindow failed for League Client window.'
+  }
+
+  $bmp.Save('${escapedPath}', [System.Drawing.Imaging.ImageFormat]::Png)
+}
+finally {
+  $gfx.Dispose()
+  $bmp.Dispose()
+}
+`;
+
+      await runPowerShell(psScript);
+
+      output.push("Screenshot captured from League Client window handle.");
+      output.push(`Temp file: ${targetPath}`);
+      output.push("Remove it manually when done.");
+
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: output.join("\n"),
+          },
+        ],
+      };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return {
+        content: [{ type: "text" as const, text: `Error: ${message}` }],
+        isError: true,
+      };
+    }
+  },
+);
+
+// Tool 9: Export plugin to Pengu Loader
 server.registerTool(
   "export_plugin_to_pengu",
   {
@@ -609,7 +776,7 @@ ${cssCleanup}
   },
 );
 
-// Tool 9: Click Element
+// Tool 10: Click Element
 server.registerTool(
   "click_lol_element",
   {
@@ -658,7 +825,7 @@ server.registerTool(
   },
 );
 
-// Tool 10: Type Into Element
+// Tool 11: Type Into Element
 server.registerTool(
   "type_into_lol_element",
   {
@@ -706,7 +873,7 @@ server.registerTool(
   },
 );
 
-// Tool 11: Query Element
+// Tool 12: Query Element
 server.registerTool(
   "query_lol_element",
   {
@@ -763,7 +930,7 @@ server.registerTool(
   },
 );
 
-// Tool 12: Wait For Element
+// Tool 13: Wait For Element
 server.registerTool(
   "wait_for_lol_element",
   {
@@ -820,7 +987,7 @@ server.registerTool(
   },
 );
 
-// Tool 13: Performance Metrics
+// Tool 14: Performance Metrics
 server.registerTool(
   "get_lol_performance_metrics",
   {
@@ -858,7 +1025,7 @@ server.registerTool(
   },
 );
 
-// Tool 14: Reload Client
+// Tool 15: Reload Client
 server.registerTool(
   "reload_lol_client",
   {
@@ -889,7 +1056,7 @@ server.registerTool(
   },
 );
 
-// Tool 15: Reload injected plugin
+// Tool 16: Reload injected plugin
 server.registerTool(
   "reload_lol_plugin",
   {

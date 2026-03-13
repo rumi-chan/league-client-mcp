@@ -22,7 +22,7 @@ AI Agent  ──MCP stdio──►  MCP Server (Node.js)
 ```
 
 **Prerequisites:** League of Legends must be running with Pengu Loader active. The plugin
-auto-connects on client load. All 15 tools will be unavailable until the plugin connects.
+auto-connects on client load. All 16 tools will be unavailable until the plugin connects.
 
 ---
 
@@ -178,6 +178,11 @@ names. Use to confirm which page you're on and what's running before injecting.
 Returns JS heap usage, DOM node count, stylesheet count, and paint timings. Run before and
 after injecting a heavy plugin to detect regressions. DOM node count > 5 000 may impact
 performance.
+
+#### `get_lol_screenshot`
+Captures a screenshot of the `LeagueClientUx` window and saves it to a temporary PNG file.
+Returns the temp path. Use this to visually verify changes or for debugging.
+Windows-only implementation.
 
 #### `reload_lol_client`
 Reloads the entire League Client. Clears **all** injected plugins. Use after
