@@ -672,7 +672,7 @@ finally {
   },
 );
 
-// Tool 8: Export plugin to Pengu Loader
+// Tool 9: Export plugin to Pengu Loader
 server.registerTool(
   "export_plugin_to_pengu",
   {
@@ -809,7 +809,7 @@ ${cssCleanup}
   },
 );
 
-// Tool 9: Click Element
+// Tool 10: Click Element
 server.registerTool(
   "click_lol_element",
   {
@@ -858,7 +858,7 @@ server.registerTool(
   },
 );
 
-// Tool 10: Type Into Element
+// Tool 11: Type Into Element
 server.registerTool(
   "type_into_lol_element",
   {
@@ -906,7 +906,7 @@ server.registerTool(
   },
 );
 
-// Tool 11: Query Element
+// Tool 12: Query Element
 server.registerTool(
   "query_lol_element",
   {
@@ -963,7 +963,7 @@ server.registerTool(
   },
 );
 
-// Tool 12: Wait For Element
+// Tool 13: Wait For Element
 server.registerTool(
   "wait_for_lol_element",
   {
@@ -1020,7 +1020,7 @@ server.registerTool(
   },
 );
 
-// Tool 13: Performance Metrics
+// Tool 14: Performance Metrics
 server.registerTool(
   "get_lol_performance_metrics",
   {
@@ -1058,7 +1058,7 @@ server.registerTool(
   },
 );
 
-// Tool 14: Reload Client
+// Tool 15: Reload Client
 server.registerTool(
   "reload_lol_client",
   {
@@ -1089,7 +1089,7 @@ server.registerTool(
   },
 );
 
-// Tool 15: Reload injected plugin
+// Tool 16: Reload injected plugin
 server.registerTool(
   "reload_lol_plugin",
   {
