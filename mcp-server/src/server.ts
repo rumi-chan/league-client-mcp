@@ -129,7 +129,7 @@ function runPowerShell(command: string): Promise<void> {
       },
       (error, _stdout, stderr) => {
         if (error) {
-          if (error.message.includes("timed out")) {
+          if (error.killed) {
             reject(
               new Error(
                 "Screenshot command timed out after 10s. " +
@@ -527,43 +527,26 @@ server.registerTool(
       "Captures a PNG screenshot of the current League Client viewport. " +
       "Saves to a temporary file and returns the file path.",
     inputSchema: z.object({
-      saveToDisk: z
-        .boolean()
-        .optional()
-        .default(true)
-        .describe("Write screenshot to a temporary PNG file (default true)"),
       fileName: z
         .string()
         .optional()
         .describe(
-          "Optional temp file name, e.g. 'client-shot.png'. Ignored when saveToDisk is false.",
-        ),
-      returnDataUrl: z
-        .boolean()
-        .optional()
-        .default(false)
-        .describe(
-          "Also return the full PNG data URL in the response text (can be large).",
+          "Optional temp file name, e.g. 'client-shot.png'.",
         ),
     }),
     annotations: {
       readOnlyHint: true,
     },
   },
-  async ({ saveToDisk, fileName, returnDataUrl }) => {
+  async ({ fileName }) => {
     try {
-      const output: string[] = [];
+      if (process.platform !== "win32") {
+        throw new Error(
+          "get_lol_screenshot is only supported on Windows.",
+        );
+      }
 
-      if (!saveToDisk) {
-        throw new Error(
-          "Direct screenshot mode currently supports only saveToDisk=true",
-        );
-      }
-      if (returnDataUrl) {
-        throw new Error(
-          "returnDataUrl is not supported in direct screenshot mode",
-        );
-      }
+      const output: string[] = [];
 
       const defaultFileName = `lol-client-screenshot-${Date.now()}.png`;
       const targetName = fileName ?? defaultFileName;
